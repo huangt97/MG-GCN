@@ -27,11 +27,14 @@ class Aggregator(torch.nn.Module):
         self.full = torch.nn.Linear(self.args.feature_dim*2, self.args.hidden)
         torch.nn.init.xavier_uniform_(self.full.weight)
     def forward(self, node_x, graph_n_n, features_n_f):
-        #adj_x_n  = sparse_mx_to_torch_sparse_tensor(graph_n_n[node_x.view(-1).cpu()]).cuda()
+        graph_n_n  =  sparse_mx_to_torch_sparse_tensor(graph_n_n).float()
         adj_x_n  = torch.index_select(graph_n_n,0,node_x.view(-1))
+        adj_x_n = adj_x_n.cuda()
+#         print("adj_x_n",adj_x_n)
         x_f_self = torch.index_select(features_n_f,0,node_x.view(-1))
-        
-        output_x_f = torch.mm(adj_x_n, features_n_f) 
+#         print("x_f_self",x_f_self)
+#         print("features_n_f",features_n_f)
+        output_x_f = torch.spmm(adj_x_n, features_n_f) 
         output = torch.cat([x_f_self, output_x_f], dim = 1)
         output =  self.full(output)
         output = torch.nn.functional.leaky_relu(output)

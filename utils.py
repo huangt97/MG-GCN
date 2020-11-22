@@ -70,6 +70,47 @@ def  loadRedditFromNPZ(dataset_dir):
 
     return  adj,  data['feats'],  data['y_train'],  data['y_val'],  data['y_test'],  data['train_index'],  data['val_index'],  data['test_index']
 
+def  loadEtherFromNPZ(dataset_dir):
+    adj  =  sp.load_npz(dataset_dir+"ether_adj.npz")
+    data  =  np.load(dataset_dir+"ether_fastGCN.npz")
+    np.nan_to_num(data['feats'])
+
+    return  adj,  data['feats'],  data['y_train'],  data['y_val'],  data['y_test'],  data['train_index'],  data['val_index'],  data['test_index'],data['train_target']
+
+def  Origin_load_ether_data(data_path="data/ether/",  normalization="AugNormAdj",  cuda=True):
+    adj,  features,  y_train,  y_val,  y_test,  train_index,  val_index,  test_index,train_target  =  loadEtherFromNPZ(data_path)
+    labels  =  np.zeros(adj.shape[0])
+    labels[train_index]    =  y_train
+    labels[val_index]    =  y_val
+    labels[test_index]    =  y_test
+    sparse_adj  =  adj  +  adj.T - adj.T
+    sparse_adj_train  =  sparse_adj[train_index,  :][:,  train_index]
+    sparse_adj_train_all  =  sparse_adj[train_target,  :][:,  train_target]
+    features = np.nan_to_num(features)
+    features  =  torch.FloatTensor(np.array(features))
+    features  =  (features-features.mean(dim=0))/features.std(dim=0)
+    adj  =  sparse_mx_to_torch_sparse_tensor(sparse_adj).float()
+    train_adj  =  sparse_mx_to_torch_sparse_tensor(sparse_adj_train).float()
+    train_adj_all = sparse_mx_to_torch_sparse_tensor(sparse_adj_train_all).float()
+    labels  =  torch.LongTensor(labels)
+    if  cuda:
+            adj =  adj.cuda()
+            train_adj  =  train_adj.cuda()
+            train_adj_all = train_adj_all.cuda()
+            features  =  features.cuda()
+            labels  =  labels.cuda()
+    train_feature  =  features[train_index,  :]
+    train_feature_all  =  features[train_target,  :]
+    train_labels  =  labels[train_index]
+    print('train_index', len(list(train_index)))
+    print('val_index', len(list(val_index)))
+    print('test_index', len(list(test_index)))
+    print('adj', adj.size())
+    print('features', features.size())
+    train_index = list(range(len(list(train_index))))
+    
+    return sparse_adj, sparse_adj_train,sparse_adj_train_all, features, train_feature,train_feature_all, labels,  train_labels, train_index, val_index, test_index, labels.unique().size()[0]
+
 def  Origin_load_reddit_data(data_path="data/reddit/",  normalization="AugNormAdj",  cuda=True):
     adj,  features,  y_train,  y_val,  y_test,  train_index,  val_index,  test_index  =  loadRedditFromNPZ(data_path)
     labels  =  np.zeros(adj.shape[0])
@@ -100,20 +141,8 @@ def  Origin_load_reddit_data(data_path="data/reddit/",  normalization="AugNormAd
     print('features', features.size())
     train_index = list(range(len(list(train_index))))
     
-    # cols_adj = adj._indices()[1]
-    # x_adj = cols_adj.bincount()
-    # rows_adj = adj._indices()[0]
-    # list_of_rows_adj = torch.split(rows_adj, x_adj.cpu().numpy().tolist())
-    
-    # cols_train = train_adj._indices()[1]
-    # x_train = cols_train.bincount()
-    # rows_train = train_adj._indices()[0]
-    # list_of_rows_train = torch.split(rows_train, x_train.cpu().numpy().tolist())
-    
-    #return adj.cpu().to_dense(), train_adj.cpu().to_dense(), train_feature, features, train_labels, labels, train_index, val_index, test_index, labels.unique().size()[0]
-    #return  list_of_rows_train, train_feature, train_labels, train_index, val_index, test_index, labels.unique().size()[0]
     return sparse_adj, sparse_adj_train, features, train_feature, labels,  train_labels, train_index, val_index, test_index, labels.unique().size()[0]
-    #return adj_sparse_cuda, adj_dense_cpu
+
 def create_batches_forWalk(walks, batch_size):
     batches = [walks[i:i + batch_size, : ] for i in range(0, len(walks), batch_size)]
     return batches
@@ -259,6 +288,8 @@ def load_data2(dataset_str, cuda): # {'pubmed', 'citeseer', 'cora'}
     """Load data."""
     if dataset_str == 'reddit':
         return Origin_load_reddit_data(cuda=cuda)
+    if dataset_str == 'ether':
+        return Origin_load_ether_data(cuda=cuda)
     names = ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
     objects = []
     for i in range(len(names)):
