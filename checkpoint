@@ -1,0 +1,2 @@
+model_checkpoint_path: "ether_pre_trained.ckpt"
+all_model_checkpoint_paths: "ether_pre_trained.ckpt"
